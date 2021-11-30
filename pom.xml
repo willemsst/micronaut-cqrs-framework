@@ -322,7 +322,7 @@
                 <plugin>
                     <groupId>org.codehaus.gmavenplus</groupId>
                     <artifactId>gmavenplus-plugin</artifactId>
-                    <version>1.13.0</version>
+                    <version>1.13.1</version>
                     <configuration>
                         <sourceEncoding>${project.build.sourceEncoding}</sourceEncoding>
                         <previewFeatures>true</previewFeatures>
