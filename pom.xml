@@ -10,7 +10,7 @@
     <description>A lightweight Micronaut based CQRS framework</description>
 
     <properties>
-        <micronaut.version>3.2.1</micronaut.version>
+        <micronaut.version>3.2.3</micronaut.version>
         <micronaut.test.version>3.0.5</micronaut.test.version>
         <micronaut.reactor.version>2.1.1</micronaut.reactor.version>
         <jdk.version>17</jdk.version>
