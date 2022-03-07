@@ -14,7 +14,7 @@
         <micronaut.test.version>3.0.5</micronaut.test.version>
         <micronaut.reactor.version>2.2.0</micronaut.reactor.version>
         <jdk.version>17</jdk.version>
-        <groovy.version>3.0.9</groovy.version>
+        <groovy.version>3.0.10</groovy.version>
         <spock.version>2.1-groovy-3.0</spock.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
