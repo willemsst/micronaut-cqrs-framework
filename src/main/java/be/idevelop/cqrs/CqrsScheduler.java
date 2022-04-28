@@ -24,7 +24,7 @@ final class CqrsScheduler {
     }
 
     <I extends Id<?, I>> Scheduler schedule(I objectId) {
-        int index = objectId.hashCode() % this.threadPoolSize;
+        int index = Math.abs(objectId.hashCode()) % this.threadPoolSize;
         return schedulers[index];
     }
 

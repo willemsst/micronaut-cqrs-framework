@@ -17,10 +17,13 @@ import reactor.core.publisher.Mono;
 
 import java.time.Instant;
 
+import static be.idevelop.cqrs.TaskExecutorFactory.SAGA_ON_SUCCESS_ACTIONS_THREAD;
+
 @Singleton
 class SagaRepository {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SagaRepository.class);
+
     @Inject
     private ApplicationContext applicationContext;
 
@@ -45,6 +48,7 @@ class SagaRepository {
                                                     Object[] arguments = prepareParametersForMethod(method, saga, eventMessage);
                                                     Object bean = applicationContext.getBean(method.getDeclaringType());
                                                     method.invoke(bean, arguments);
+                                                    this.storeSaga(saga);
                                                 })
                                                 .reduce(method, (m, s) -> m);
                                     });
@@ -74,9 +78,16 @@ class SagaRepository {
                 if (Event.class.isAssignableFrom(argument.getType()) && !eventClass.isAssignableFrom(argument.getType())) {
                     throw new IllegalStateException("Wrong event for this @SagaEventHandler(event=" + eventClass + ") method: " + method.getDescription());
                 }
+                if (EventMessage.class.isAssignableFrom(argument.getType())) {
+                    for (Argument<?> typeParameter : argument.getTypeParameters()) {
+                        if (Event.class.isAssignableFrom(typeParameter.getType()) && !typeParameter.getType().isAssignableFrom(eventClass)) {
+                            throw new IllegalStateException("Wrong event for this @SagaEventHandler(event=" + eventClass + ") method: " + method.getDescription());
+                        }
+                    }
+                }
             }
         } else {
-            throw new IllegalStateException("Expected an Event class on the @SagaEventHandler annotation for method " + method.getDescription());
+            return false;
         }
         return true;
     }
@@ -113,9 +124,7 @@ class SagaRepository {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private final <I extends Id<A, I>, A extends AggregateRoot<A, I>, S extends
-            Saga<S>>
-    Flux<S> findAssociatedSagas(Class<? extends Saga> sagaClass, I objectId) {
+    private <I extends Id<A, I>, A extends AggregateRoot<A, I>, S extends Saga<S>> Flux<S> findAssociatedSagas(Class<? extends Saga> sagaClass, I objectId) {
         return (Flux<S>) this.sagaStore.findAssociatedSagas(objectId)
                 .filter(sagaClass::isInstance);
     }
@@ -132,8 +141,8 @@ class SagaRepository {
         performOnSuccessActionsAsync(saga);
     }
 
-    @Async("saga-on-success-actions")
-    void performOnSuccessActionsAsync(Saga saga) {
+    @Async(SAGA_ON_SUCCESS_ACTIONS_THREAD)
+    <S extends Saga<S>> void performOnSuccessActionsAsync(S saga) {
         saga.performOnSuccessActions();
     }
 }

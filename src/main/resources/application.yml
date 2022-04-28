@@ -1,11 +1,6 @@
 micronaut:
   application:
     name: cqrs-framework
-  executors:
-    saga-on-success-actions:
-      type: scheduled
-      name: saga-on-success-actions
-      thread-factory-class: io.micronaut.scheduling.executor.NamedThreadFactory
 
 jackson:
   serialization:
