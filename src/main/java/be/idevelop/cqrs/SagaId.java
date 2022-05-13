@@ -12,4 +12,9 @@ public record SagaId<S extends Saga<S>>(UUID value, Class<S> sagaClass) implemen
     public Class<S> getEntityClass() {
         return sagaClass;
     }
+
+    @Override
+    public String asString() {
+        return value.toString();
+    }
 }

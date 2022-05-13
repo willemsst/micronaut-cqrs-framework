@@ -6,4 +6,9 @@ public class TestId implements Id<TestAggregateRoot, TestId> {
     public Class<TestAggregateRoot> getEntityClass() {
         return TestAggregateRoot.class;
     }
+
+    @Override
+    public String asString() {
+        return "";
+    }
 }

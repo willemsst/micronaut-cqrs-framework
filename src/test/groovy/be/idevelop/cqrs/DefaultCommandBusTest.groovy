@@ -60,7 +60,7 @@ class DefaultCommandBusTest extends Specification {
         }
 
         @Override
-        <I extends Id<A, I>, A extends AggregateRoot<A, I>> Mono<Boolean> saveEventMessages(List<EventMessage<I, ? extends Event<I>>> eventMessages) {
+        <I extends Id<A, I>, A extends AggregateRoot<A, I>> Mono<Boolean> saveEventMessages(List<EventMessage<I, ? extends Event<I>>> eventMessages, Class<A> claßß) {
             if (!eventMessages.isEmpty()) {
                 //noinspection unchecked
                 this.eventMessages.computeIfAbsent(eventMessages.get(0).eventMeta().objectId(), id -> new ArrayList<>()).addAll(eventMessages)

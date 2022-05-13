@@ -22,9 +22,10 @@ final class ObjectRepository {
                 .switchIfEmpty(Mono.fromSupplier(() -> aggregateRootFactory.createNewAggregateRootInstance(objectId, claßß)));
     }
 
+    @SuppressWarnings("unchecked")
     <I extends Id<A, I>, A extends AggregateRoot<A, I>> Mono<A> save(A aggregateRoot) {
         var eventMessages = aggregateRoot.eventMessages();
-        return this.eventRepository.saveEventMessages(eventMessages)
+        return this.eventRepository.saveEventMessages(eventMessages, (Class<A>) aggregateRoot.getClass())
                 .filter(success -> success)
                 .flatMap(success -> this.eventBus.publish(eventMessages))
                 .filter(success -> success)

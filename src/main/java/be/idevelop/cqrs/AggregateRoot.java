@@ -36,31 +36,27 @@ public abstract class AggregateRoot<THIS extends AggregateRoot<THIS, I>, I exten
     }
 
     protected final void apply(Event<I> event) {
-        this.register(event);
-        this.dispatch(event);
+        EventMessage<I, Event<I>> eventMessage = this.register(event);
+        this.dispatch(eventMessage);
     }
 
     final void replay(EventMessage<I, ? extends Event<I>> eventMessage) {
-        this.dispatch(eventMessage.event());
+        this.dispatch(eventMessage);
     }
 
-    private void register(Event<I> event) {
-        this.incrementVersion();
-        this.eventMessages.add(new EventMessage<>(new EventMeta<>(this.id, this.version, Instant.now()), event));
+    private EventMessage<I, Event<I>> register(Event<I> event) {
+        EventMessage<I, Event<I>> eventMessage = new EventMessage<>(new EventMeta<>(this.id, this.version + 1, Instant.now()), event);
+        this.eventMessages.add(eventMessage);
+        return eventMessage;
     }
 
-    private void incrementVersion() {
-        this.version++;
-    }
-
-    private void dispatch(Event<I> event) {
+    private void dispatch(EventMessage<I, ? extends Event<I>> eventMessage) {
         //noinspection unchecked
-        getCqrsEventHandlers(event)
+        getCqrsEventHandlers(eventMessage.event())
                 .sort(OrderUtil.COMPARATOR)
-                .doOnNext(handler -> handler.onEvent(this, event))
+                .doOnNext(handler -> handler.onEvent(this, eventMessage.event()))
                 .doOnError(throwable -> LOGGER.warn("Failed handling event"))
-                .map(handler -> true)
-                .onErrorReturn(false)
+                .doOnComplete(() -> this.version = eventMessage.eventMeta().version())
                 .subscribe();
     }
 

@@ -52,5 +52,10 @@ class CqrsSchedulerTest extends Specification {
         Class getEntityClass() {
             return null
         }
+
+        @Override
+        String asString() {
+            return String.valueOf(value);
+        }
     }
 }

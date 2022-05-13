@@ -51,9 +51,8 @@ final class DefaultCommandBus implements CommandBus {
                 .flatMap(aggregateRoot ->
                         getCqrsCommandHandlers(command)
                                 .sort(OrderUtil.COMPARATOR)
-                                .reduce(aggregateRoot,
-                                        (a, handler) -> (A) handler.onCommand(a, command)
-                                )
+                                .doOnNext(handler -> handler.onCommand(aggregateRoot, command))
+                                .reduce(aggregateRoot, (a, handler) -> a)
                 )
                 .flatMap(objectRepository::save)
                 .map(aggregateRoot -> aggregateRoot.id)
