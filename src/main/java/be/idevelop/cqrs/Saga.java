@@ -117,7 +117,7 @@ public abstract class Saga<THIS extends Saga<THIS>> implements Entity<THIS, Saga
         this.onSuccessActions.clear();
     }
 
-    static record HandledEvent(Event event, int version, Instant timestamp) {
+    record HandledEvent(Event event, int version, Instant timestamp) {
 
     }
 
