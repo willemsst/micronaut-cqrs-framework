@@ -50,7 +50,8 @@ public abstract class Saga<THIS extends Saga<THIS>> implements Entity<THIS, Saga
         return switch (this.timeoutStrategy.timeoutType()) {
             case SINCE_START, SINCE_LAST_EVENT -> this.created.plus(timeoutStrategy.value(), timeoutStrategy.unit());
             case NO_TIMEOUT -> Instant.MAX;
-            default -> throw new IllegalStateException("Unknown timeout type " + timeoutStrategy.timeoutType() + ". Please implement for this switch statement.");
+            default ->
+                    throw new IllegalStateException("Unknown timeout type " + timeoutStrategy.timeoutType() + ". Please implement for this switch statement.");
         };
     }
 
@@ -59,7 +60,8 @@ public abstract class Saga<THIS extends Saga<THIS>> implements Entity<THIS, Saga
             case SINCE_START -> this.scheduledTimeout;
             case SINCE_LAST_EVENT -> Instant.now().plus(timeoutStrategy.value(), timeoutStrategy.unit());
             case NO_TIMEOUT -> Instant.MAX;
-            default -> throw new IllegalStateException("Unknown timeout type " + timeoutStrategy.timeoutType() + ". Please implement for this switch statement.");
+            default ->
+                    throw new IllegalStateException("Unknown timeout type " + timeoutStrategy.timeoutType() + ". Please implement for this switch statement.");
         };
     }
 
@@ -67,13 +69,13 @@ public abstract class Saga<THIS extends Saga<THIS>> implements Entity<THIS, Saga
         return !isTimedOut() && this.currentState.isLive();
     }
 
-    public final <I extends Id<E, I>, E extends Entity<E, I>> void transit(I id, Event<I> event, Runnable... onSuccessActions) {
+    public final <I extends Id<E, I>, E extends Entity<E, I>> void transit(I id, Record event, Runnable... onSuccessActions) {
         if (doTransit(id, event, false)) {
             Collections.addAll(this.onSuccessActions, onSuccessActions);
         }
     }
 
-    private <I extends Id<E, I>, E extends Entity<E, I>> boolean doTransit(I id, Event<I> event, boolean inReplayMode) {
+    private <I extends Id<E, I>, E extends Entity<E, I>> boolean doTransit(I id, Record event, boolean inReplayMode) {
         boolean result = false;
         if (!isTimedOut()) {
             if (this.currentState.isAllowed(event)) {
@@ -89,6 +91,7 @@ public abstract class Saga<THIS extends Saga<THIS>> implements Entity<THIS, Saga
         return result;
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private boolean isTimedOut() {
         return Instant.now().isAfter(this.scheduledTimeout);
     }
@@ -108,7 +111,6 @@ public abstract class Saga<THIS extends Saga<THIS>> implements Entity<THIS, Saga
         }
     }
 
-    @SuppressWarnings("unchecked")
     final void replayEvents(List<HandledEvent> handledEvents) {
         for (HandledEvent handledEvent : handledEvents) {
             this.doTransit(getSagaId(), handledEvent.event, true);
@@ -117,7 +119,7 @@ public abstract class Saga<THIS extends Saga<THIS>> implements Entity<THIS, Saga
         this.onSuccessActions.clear();
     }
 
-    record HandledEvent(Event event, int version, Instant timestamp) {
+    record HandledEvent(Record event, int version, Instant timestamp) {
 
     }
 

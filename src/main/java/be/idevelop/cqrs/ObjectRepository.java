@@ -16,10 +16,10 @@ final class ObjectRepository {
     @Inject
     private AggregateRootFactory aggregateRootFactory;
 
-    <I extends Id<A, I>, A extends AggregateRoot<A, I>> Mono<A> retrieve(I objectId, Class<A> claßß) {
-        return this.eventRepository.retrieveEventMessages(objectId, claßß)
-                .collect(() -> aggregateRootFactory.createNewAggregateRootInstance(objectId, claßß), AggregateRoot::replay)
-                .switchIfEmpty(Mono.fromSupplier(() -> aggregateRootFactory.createNewAggregateRootInstance(objectId, claßß)));
+    <I extends Id<A, I>, A extends AggregateRoot<A, I>> Mono<A> retrieve(I objectId, Class<A> clazz) {
+        return this.eventRepository.retrieveEventMessages(objectId, clazz)
+                .collect(() -> aggregateRootFactory.createNewAggregateRootInstance(objectId, clazz), AggregateRoot::replay)
+                .switchIfEmpty(Mono.fromSupplier(() -> aggregateRootFactory.createNewAggregateRootInstance(objectId, clazz)));
     }
 
     @SuppressWarnings("unchecked")

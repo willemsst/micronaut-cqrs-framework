@@ -15,5 +15,5 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Executable
 public @interface SagaEventHandler {
 
-    Class<? extends Event<?>> event();
+    Class<?> event();
 }

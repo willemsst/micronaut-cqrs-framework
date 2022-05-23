@@ -4,6 +4,7 @@ import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.Qualifier;
 import io.micronaut.context.annotation.Parameter;
 import io.micronaut.core.annotation.Introspected;
+import io.micronaut.core.beans.BeanIntrospector;
 import io.micronaut.core.order.OrderUtil;
 import io.micronaut.inject.qualifiers.Qualifiers;
 import jakarta.inject.Inject;
@@ -25,7 +26,7 @@ public abstract class AggregateRoot<THIS extends AggregateRoot<THIS, I>, I exten
 
     long version = -1;
 
-    private final List<EventMessage<I, ? extends Event<I>>> eventMessages;
+    private final List<EventMessage<I>> eventMessages;
 
     @Inject
     private ApplicationContext applicationContext;
@@ -35,22 +36,36 @@ public abstract class AggregateRoot<THIS extends AggregateRoot<THIS, I>, I exten
         this.eventMessages = new ArrayList<>();
     }
 
-    protected final void apply(Event<I> event) {
-        EventMessage<I, Event<I>> eventMessage = this.register(event);
+    protected final void apply(Record event) {
+        EventMessage<I> eventMessage = this.register(event);
         this.dispatch(eventMessage);
     }
 
-    final void replay(EventMessage<I, ? extends Event<I>> eventMessage) {
+    final void replay(EventMessage<I> eventMessage) {
         this.dispatch(eventMessage);
     }
 
-    private EventMessage<I, Event<I>> register(Event<I> event) {
-        EventMessage<I, Event<I>> eventMessage = new EventMessage<>(new EventMeta<>(this.id, this.version + 1, Instant.now()), event);
-        this.eventMessages.add(eventMessage);
-        return eventMessage;
+    private EventMessage<I> register(Record event) {
+        if (isValidEvent(event)) {
+            EventMessage<I> eventMessage = new EventMessage<>(new EventMeta<>(this.id, this.version + 1, Instant.now()), event);
+            this.eventMessages.add(eventMessage);
+            return eventMessage;
+        } else {
+            throw new IllegalStateException("Invalid event type. Record should have the @Event annotation. Please verify Record " + event.getClass());
+        }
     }
 
-    private void dispatch(EventMessage<I, ? extends Event<I>> eventMessage) {
+    private static boolean isValidEvent(Record event) {
+        if (event != null) {
+            return BeanIntrospector.SHARED.findIntrospection(event.getClass())
+                    .map(
+                            beanIntrospection -> beanIntrospection.hasAnnotation(Event.class)
+                    ).orElse(false);
+        }
+        return false;
+    }
+
+    private void dispatch(EventMessage<I> eventMessage) {
         //noinspection unchecked
         getCqrsEventHandlers(eventMessage.event())
                 .sort(OrderUtil.COMPARATOR)
@@ -60,7 +75,7 @@ public abstract class AggregateRoot<THIS extends AggregateRoot<THIS, I>, I exten
                 .subscribe();
     }
 
-    final List<EventMessage<I, ? extends Event<I>>> eventMessages() {
+    final List<EventMessage<I>> eventMessages() {
         return Collections.unmodifiableList(this.eventMessages);
     }
 
@@ -75,7 +90,7 @@ public abstract class AggregateRoot<THIS extends AggregateRoot<THIS, I>, I exten
     }
 
     @SuppressWarnings({"rawtypes"})
-    <E extends Event<I>> Flux<CqrsEventHandler> getCqrsEventHandlers(E event) {
+    Flux<CqrsEventHandler> getCqrsEventHandlers(Record event) {
         Qualifier<CqrsEventHandler> qualifier = Qualifiers.byTypeArguments(this.getClass(), event.getClass());
 
         var beansOfType = this.applicationContext.getBeansOfType(CqrsEventHandler.class, qualifier);

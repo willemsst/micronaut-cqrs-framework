@@ -7,5 +7,5 @@ import java.util.List;
 public interface EventBus {
 
     <I extends Id<A, I>, A extends AggregateRoot<A, I>>
-    Mono<Boolean> publish(List<EventMessage<I, ? extends Event<I>>> eventMessages);
+    Mono<Boolean> publish(List<EventMessage<I>> eventMessages);
 }

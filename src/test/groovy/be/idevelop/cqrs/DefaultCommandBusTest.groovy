@@ -45,12 +45,12 @@ class DefaultCommandBusTest extends Specification {
     static class InMemoryEventRepository implements EventRepository {
 
         @SuppressWarnings("rawtypes")
-        final ConcurrentMap<Id, List> eventMessages = new ConcurrentHashMap<>();
+        final ConcurrentMap<Id, List> eventMessages = new ConcurrentHashMap<>()
 
         @Override
-        <I extends Id<A, I>, A extends AggregateRoot<A, I>, E extends Event<I>> Flux<EventMessage<I, E>> retrieveEventMessages(I objectId, Class<A> claßß) {
+        <I extends Id<A, I>, A extends AggregateRoot<A, I>> Flux<EventMessage<I>> retrieveEventMessages(I objectId, Class<A> clazz) {
             //noinspection unchecked
-            List<EventMessage<I, E>> events = this.eventMessages.get(objectId)
+            List<EventMessage<I>> events = this.eventMessages.get(objectId)
             if (events == null || events.isEmpty()) {
                 return Flux.empty()
             } else {
@@ -60,7 +60,7 @@ class DefaultCommandBusTest extends Specification {
         }
 
         @Override
-        <I extends Id<A, I>, A extends AggregateRoot<A, I>> Mono<Boolean> saveEventMessages(List<EventMessage<I, ? extends Event<I>>> eventMessages, Class<A> claßß) {
+        <I extends Id<A, I>, A extends AggregateRoot<A, I>> Mono<Boolean> saveEventMessages(List<EventMessage<I>> eventMessages, Class<A> clazz) {
             if (!eventMessages.isEmpty()) {
                 //noinspection unchecked
                 this.eventMessages.computeIfAbsent(eventMessages.get(0).eventMeta().objectId(), id -> new ArrayList<>()).addAll(eventMessages)

@@ -38,6 +38,10 @@
             <artifactId>micronaut-reactor</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.micronaut.serde</groupId>
+            <artifactId>micronaut-serde-api</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
         </dependency>
@@ -123,6 +127,11 @@
                 <groupId>io.micronaut.reactor</groupId>
                 <artifactId>micronaut-reactor</artifactId>
                 <version>${micronaut.reactor.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.micronaut.serde</groupId>
+                <artifactId>micronaut-serde-api</artifactId>
+                <version>1.1.0</version>
             </dependency>
             <dependency>
                 <groupId>org.slf4j</groupId>

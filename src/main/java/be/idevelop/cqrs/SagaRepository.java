@@ -31,7 +31,7 @@ class SagaRepository {
     private SagaStore sagaStore;
 
     @SuppressWarnings({"unchecked"})
-    <I extends Id<A, I>, A extends AggregateRoot<A, I>, E extends Event<I>, EM extends EventMessage<I, E>, S extends Saga<S>> Mono<EM> handleEventOnSagas(EM eventMessage) {
+    <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I>, S extends Saga<S>> Mono<EM> handleEventOnSagas(EM eventMessage) {
         Qualifier<Object> byAnnotation = Qualifiers.byAnnotation(() -> SagaDefinition.class);
         return Flux.fromIterable(applicationContext.getBeanDefinitions(byAnnotation))
                 .flatMap(sagaDefinition -> {
@@ -58,8 +58,8 @@ class SagaRepository {
     }
 
     @SuppressWarnings({"rawtypes"})
-    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, E extends Event<I>, S extends Saga<S>>
-    Flux<ExecutableMethod> lookupAllMethodsForEventType(BeanDefinition<?> sagaDefinition, Class<S> sagaClass, E event) {
+    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, S extends Saga<S>>
+    Flux<ExecutableMethod> lookupAllMethodsForEventType(BeanDefinition<?> sagaDefinition, Class<S> sagaClass, Record event) {
         return Flux.fromIterable(sagaDefinition.getExecutableMethods())
                 .filter(method -> method.hasAnnotation(SagaEventHandler.class))
                 .filter(method -> isValidMethodForEvent(method, sagaClass, event))
@@ -67,7 +67,7 @@ class SagaRepository {
     }
 
     @SuppressWarnings("ConstantConditions")
-    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, E extends Event<I>> boolean isValidMethodForEvent(ExecutableMethod<?, ?> method, Class<?> sagaClass, E event) {
+    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>> boolean isValidMethodForEvent(ExecutableMethod<?, ?> method, Class<?> sagaClass, Record event) {
         Class<?> eventClass = method.getAnnotation(SagaEventHandler.class).get("event", Class.class)
                 .orElseThrow(() -> new IllegalStateException("Expected an Event class on the @SagaEventHandler annotation for method " + method.getDescription()));
         if (eventClass.isAssignableFrom(event.getClass())) {
@@ -101,7 +101,7 @@ class SagaRepository {
         return (Class<S>) sClass;
     }
 
-    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, E extends Event<I>, EM extends EventMessage<I, E>, S extends Saga<S>> Object[] prepareParametersForMethod(ExecutableMethod<?, ?> method, S saga, EM eventMessage) {
+    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I>, S extends Saga<S>> Object[] prepareParametersForMethod(ExecutableMethod<?, ?> method, S saga, EM eventMessage) {
         Object[] parameters = new Object[method.getArguments().length];
         for (int i = 0; i < method.getArguments().length; i++) {
             parameters[i] = prepareParameterForArgument(method.getArgumentTypes()[i], saga, eventMessage);
@@ -109,12 +109,12 @@ class SagaRepository {
         return parameters;
     }
 
-    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, E extends Event<I>, EM extends EventMessage<I, E>, S extends Saga<S>> Object prepareParameterForArgument(Class<?> argumentType, S saga, EM eventMessage) {
+    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I>, S extends Saga<S>> Object prepareParameterForArgument(Class<?> argumentType, S saga, EM eventMessage) {
         if (Saga.class.isAssignableFrom(argumentType)) {
             return saga;
         } else if (EventMessage.class.isAssignableFrom(argumentType)) {
             return eventMessage;
-        } else if (Event.class.isAssignableFrom(argumentType)) {
+        } else if (Record.class.isAssignableFrom(argumentType) && argumentType.isAnnotationPresent(Event.class)) {
             return eventMessage.event();
         } else if (EventMeta.class.isAssignableFrom(argumentType)) {
             return eventMessage.eventMeta();

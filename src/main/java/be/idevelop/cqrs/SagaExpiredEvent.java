@@ -1,4 +1,5 @@
 package be.idevelop.cqrs;
 
-public class SagaExpiredEvent implements Event {
+@Event(SagaId.class)
+public record SagaExpiredEvent() {
 }

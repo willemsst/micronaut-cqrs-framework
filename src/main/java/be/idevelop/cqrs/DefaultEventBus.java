@@ -23,7 +23,7 @@ final class DefaultEventBus implements EventBus {
     SagaRepository sagaRepository;
 
     @Override
-    public <I extends Id<A, I>, A extends AggregateRoot<A, I>> Mono<Boolean> publish(List<EventMessage<I, ? extends Event<I>>> eventMessages) {
+    public <I extends Id<A, I>, A extends AggregateRoot<A, I>> Mono<Boolean> publish(List<EventMessage<I>> eventMessages) {
         return Flux.fromIterable(eventMessages)
                 .flatMap(this::handleEventOnListeners)
                 .flatMap(sagaRepository::handleEventOnSagas)
@@ -32,7 +32,7 @@ final class DefaultEventBus implements EventBus {
     }
 
     @SuppressWarnings("unchecked")
-    private <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I, ? extends Event<I>>> Mono<EM> handleEventOnListeners(EM eventMessage) {
+    private <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I>> Mono<EM> handleEventOnListeners(EM eventMessage) {
         return getCqrsEventBusHandlers(eventMessage)
                 .sort(OrderUtil.COMPARATOR)
                 .doOnNext(handler -> handler.onEvent(eventMessage.event(), eventMessage.eventMeta()))
@@ -41,7 +41,7 @@ final class DefaultEventBus implements EventBus {
     }
 
     @SuppressWarnings("rawtypes")
-    private <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I, ? extends Event<I>>> Flux<CqrsEventBusHandler> getCqrsEventBusHandlers(EM eventMessage) {
+    private <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I>> Flux<CqrsEventBusHandler> getCqrsEventBusHandlers(EM eventMessage) {
         Qualifier<CqrsEventBusHandler> qualifier = Qualifiers.byTypeArguments(eventMessage.event().getClass(), eventMessage.eventMeta().getClass());
         var beansOfType = applicationContext.getBeansOfType(CqrsEventBusHandler.class, qualifier);
         if (LOGGER.isTraceEnabled()) {

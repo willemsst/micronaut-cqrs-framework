@@ -1,4 +1,5 @@
 package be.idevelop.cqrs;
 
-public record TestValidatedEvent() implements Event<TestId> {
+@Event(TestId.class)
+public record TestValidatedEvent() {
 }

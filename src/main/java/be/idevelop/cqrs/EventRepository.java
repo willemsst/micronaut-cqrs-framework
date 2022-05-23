@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface EventRepository {
 
-    <I extends Id<A, I>, A extends AggregateRoot<A, I>, E extends Event<I>> Flux<EventMessage<I, E>> retrieveEventMessages(I objectId, Class<A> claßß);
+    <I extends Id<A, I>, A extends AggregateRoot<A, I>> Flux<EventMessage<I>> retrieveEventMessages(I objectId, Class<A> clazz);
 
-    <I extends Id<A, I>, A extends AggregateRoot<A, I>> Mono<Boolean> saveEventMessages(List<EventMessage<I, ? extends Event<I>>> eventMessages, Class<A> claßß);
+    <I extends Id<A, I>, A extends AggregateRoot<A, I>> Mono<Boolean> saveEventMessages(List<EventMessage<I>> eventMessages, Class<A> clazz);
 }
