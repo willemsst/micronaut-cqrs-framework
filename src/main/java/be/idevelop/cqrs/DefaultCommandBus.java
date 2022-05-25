@@ -47,7 +47,6 @@ final class DefaultCommandBus implements CommandBus {
     private <I extends Id<A, I>, A extends AggregateRoot<A, I>> Mono<I> process(Command<I> command) {
         Class<A> aggregateRootClass = command.objectId().getEntityClass();
 
-        //noinspection unchecked
         return objectRepository.retrieve(command.objectId(), aggregateRootClass)
                 .flatMap(aggregateRoot ->
                         getCqrsCommandHandlers(command)
@@ -60,6 +59,7 @@ final class DefaultCommandBus implements CommandBus {
                                 })
                                 .map(x -> {
                                     if (x instanceof Publisher<?>) {
+                                        //noinspection ReactiveStreamsUnusedPublisher
                                         return flatten((Publisher<?>) x);
                                     } else {
                                         return x;
@@ -84,6 +84,7 @@ final class DefaultCommandBus implements CommandBus {
                 })
                 .map(x -> {
                     if (x instanceof Publisher<?>) {
+                        //noinspection ReactiveStreamsUnusedPublisher
                         return flatten((Publisher<?>) x);
                     } else {
                         return x;
