@@ -38,7 +38,7 @@ final class CreateNewTestObjectSaga extends Saga<CreateNewTestObjectSaga> {
         private CommandBus commandBus;
 
         @SagaEventHandler(event = TestCreatedEvent.class)
-        public void onEvent(CreateNewTestObjectSaga saga, EventMessage<TestId> eventMessage) {
+        public void onEvent(CreateNewTestObjectSaga saga, EventMessage<TestId, TestCreatedEvent> eventMessage) {
             saga.transit(eventMessage.objectId(), eventMessage.event(), () -> commandBus.publish(new ValidateTestObjectCommand(eventMessage.objectId())));
         }
     }

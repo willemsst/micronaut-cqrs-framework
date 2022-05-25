@@ -31,12 +31,12 @@ class SagaRepository {
     private SagaStore sagaStore;
 
     @SuppressWarnings({"unchecked"})
-    <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I>, S extends Saga<S>> Mono<EM> handleEventOnSagas(EM eventMessage) {
+    <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I, ? extends Record>, S extends Saga<S>> Mono<EM> handleEventOnSagas(EM eventMessage) {
         Qualifier<Object> byAnnotation = Qualifiers.byAnnotation(() -> SagaDefinition.class);
         return Flux.fromIterable(applicationContext.getBeanDefinitions(byAnnotation))
                 .flatMap(sagaDefinition -> {
                             Class<S> sagaClass = lookupSagaClassForMethod(sagaDefinition);
-                            return lookupAllMethodsForEventType(sagaDefinition, sagaClass, eventMessage.event())
+                            return lookupAllMethodsForEventType(sagaDefinition, sagaClass, eventMessage)
                                     .flatMap(method -> {
                                         if (LOGGER.isTraceEnabled()) {
                                             LOGGER.trace("Found event handler {} for event: {}", method.getDescription(true), eventMessage.event());
@@ -58,19 +58,19 @@ class SagaRepository {
     }
 
     @SuppressWarnings({"rawtypes"})
-    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, S extends Saga<S>>
-    Flux<ExecutableMethod> lookupAllMethodsForEventType(BeanDefinition<?> sagaDefinition, Class<S> sagaClass, Record event) {
+    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I, ? extends Record>, S extends Saga<S>>
+    Flux<ExecutableMethod> lookupAllMethodsForEventType(BeanDefinition<?> sagaDefinition, Class<S> sagaClass, EM eventMessage) {
         return Flux.fromIterable(sagaDefinition.getExecutableMethods())
                 .filter(method -> method.hasAnnotation(SagaEventHandler.class))
-                .filter(method -> isValidMethodForEvent(method, sagaClass, event))
+                .filter(method -> isValidMethodForEvent(method, sagaClass, eventMessage))
                 .cast(ExecutableMethod.class);
     }
 
     @SuppressWarnings("ConstantConditions")
-    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>> boolean isValidMethodForEvent(ExecutableMethod<?, ?> method, Class<?> sagaClass, Record event) {
+    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I, ? extends Record>> boolean isValidMethodForEvent(ExecutableMethod<?, ?> method, Class<?> sagaClass, EM eventMessage) {
         Class<?> eventClass = method.getAnnotation(SagaEventHandler.class).get("event", Class.class)
                 .orElseThrow(() -> new IllegalStateException("Expected an Event class on the @SagaEventHandler annotation for method " + method.getDescription()));
-        if (eventClass.isAssignableFrom(event.getClass())) {
+        if (eventClass.isAssignableFrom(eventMessage.event().getClass())) {
             for (Argument<?> argument : method.getArguments()) {
                 if (Saga.class.isAssignableFrom(argument.getType()) && !sagaClass.isAssignableFrom(argument.getType())) {
                     throw new IllegalStateException("Wrong saga class for this @SagaDefinition(saga=" + sagaClass + ")");
@@ -101,7 +101,7 @@ class SagaRepository {
         return (Class<S>) sClass;
     }
 
-    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I>, S extends Saga<S>> Object[] prepareParametersForMethod(ExecutableMethod<?, ?> method, S saga, EM eventMessage) {
+    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I, ? extends Record>, S extends Saga<S>> Object[] prepareParametersForMethod(ExecutableMethod<?, ?> method, S saga, EM eventMessage) {
         Object[] parameters = new Object[method.getArguments().length];
         for (int i = 0; i < method.getArguments().length; i++) {
             parameters[i] = prepareParameterForArgument(method.getArgumentTypes()[i], saga, eventMessage);
@@ -109,7 +109,7 @@ class SagaRepository {
         return parameters;
     }
 
-    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I>, S extends Saga<S>> Object prepareParameterForArgument(Class<?> argumentType, S saga, EM eventMessage) {
+    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I, ? extends Record>, S extends Saga<S>> Object prepareParameterForArgument(Class<?> argumentType, S saga, EM eventMessage) {
         if (Saga.class.isAssignableFrom(argumentType)) {
             return saga;
         } else if (EventMessage.class.isAssignableFrom(argumentType)) {

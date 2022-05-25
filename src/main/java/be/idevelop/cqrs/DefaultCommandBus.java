@@ -6,6 +6,7 @@ import io.micronaut.core.order.OrderUtil;
 import io.micronaut.inject.qualifiers.Qualifiers;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -51,13 +52,43 @@ final class DefaultCommandBus implements CommandBus {
                 .flatMap(aggregateRoot ->
                         getCqrsCommandHandlers(command)
                                 .sort(OrderUtil.COMPARATOR)
-                                .doOnNext(handler -> handler.onCommand(aggregateRoot, command))
-                                .reduce(aggregateRoot, (a, handler) -> a)
+                                .flatMap(handler -> {
+                                    //noinspection unchecked
+                                    Object o = handler.onCommand(aggregateRoot, command);
+                                    //noinspection unchecked
+                                    return o instanceof Publisher<?> ? (Publisher<Object>) o : Mono.just(o);
+                                })
+                                .map(x -> {
+                                    if (x instanceof Publisher<?>) {
+                                        return flatten((Publisher<?>) x);
+                                    } else {
+                                        return x;
+                                    }
+                                })
+                                .reduce(aggregateRoot, (a, x) -> a)
                 )
                 .flatMap(objectRepository::save)
                 .map(aggregateRoot -> aggregateRoot.id)
                 .subscribeOn(cqrsScheduler.schedule(command.objectId()))
                 .publishOn(continuationScheduler);
+    }
+
+    private static Flux<Object> flatten(Publisher<?> source) {
+        return Flux.from(source)
+                .flatMap(x -> {
+                    if (x instanceof Publisher) {
+                        return flatten(Flux.from((Publisher<?>) x));
+                    } else {
+                        return Mono.just(x);
+                    }
+                })
+                .map(x -> {
+                    if (x instanceof Publisher<?>) {
+                        return flatten((Publisher<?>) x);
+                    } else {
+                        return x;
+                    }
+                });
     }
 
     @SuppressWarnings("rawtypes")

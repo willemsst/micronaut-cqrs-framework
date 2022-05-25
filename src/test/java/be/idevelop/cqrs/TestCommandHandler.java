@@ -10,14 +10,16 @@ public class TestCommandHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(TestCommandHandler.class);
 
     @CommandHandler
-    void onCommand(TestAggregateRoot testObject, TestCommand command) {
+    TestAggregateRoot onCommand(TestAggregateRoot testObject, TestCommand command) {
         LOGGER.debug("Handling test command {} for {}", command, testObject);
         testObject.init();
+        return testObject;
     }
 
     @CommandHandler
-    void onCommand(TestAggregateRoot testObject, ValidateTestObjectCommand command) {
+    TestAggregateRoot onCommand(TestAggregateRoot testObject, ValidateTestObjectCommand command) {
         LOGGER.debug("Handling test command {} for {}", command, testObject);
         testObject.validate();
+        return testObject;
     }
 }

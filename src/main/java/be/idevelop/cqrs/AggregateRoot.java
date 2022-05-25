@@ -26,7 +26,7 @@ public abstract class AggregateRoot<THIS extends AggregateRoot<THIS, I>, I exten
 
     long version = -1;
 
-    private final List<EventMessage<I>> eventMessages;
+    private final List<EventMessage<I, ? extends Record>> eventMessages;
 
     @Inject
     private ApplicationContext applicationContext;
@@ -37,17 +37,17 @@ public abstract class AggregateRoot<THIS extends AggregateRoot<THIS, I>, I exten
     }
 
     protected final void apply(Record event) {
-        EventMessage<I> eventMessage = this.register(event);
+        EventMessage<I, ? extends Record> eventMessage = this.register(event);
         this.dispatch(eventMessage);
     }
 
-    final void replay(EventMessage<I> eventMessage) {
+    final void replay(EventMessage<I, ? extends Record> eventMessage) {
         this.dispatch(eventMessage);
     }
 
-    private EventMessage<I> register(Record event) {
+    private EventMessage<I, ? extends Record> register(Record event) {
         if (isValidEvent(event)) {
-            EventMessage<I> eventMessage = new EventMessage<>(new EventMeta<>(this.id, this.version + 1, Instant.now()), event);
+            var eventMessage = new EventMessage<>(new EventMeta<>(this.id, this.version + 1, Instant.now()), event);
             this.eventMessages.add(eventMessage);
             return eventMessage;
         } else {
@@ -65,9 +65,9 @@ public abstract class AggregateRoot<THIS extends AggregateRoot<THIS, I>, I exten
         return false;
     }
 
-    private void dispatch(EventMessage<I> eventMessage) {
+    private void dispatch(EventMessage<I, ? extends Record> eventMessage) {
         //noinspection unchecked
-        getCqrsEventHandlers(eventMessage.event())
+        getCqrsEventHandlers(eventMessage)
                 .sort(OrderUtil.COMPARATOR)
                 .doOnNext(handler -> handler.onEvent(this, eventMessage.event()))
                 .doOnError(throwable -> LOGGER.warn("Failed handling event"))
@@ -75,7 +75,7 @@ public abstract class AggregateRoot<THIS extends AggregateRoot<THIS, I>, I exten
                 .subscribe();
     }
 
-    final List<EventMessage<I>> eventMessages() {
+    final List<EventMessage<I, ? extends Record>> eventMessages() {
         return Collections.unmodifiableList(this.eventMessages);
     }
 
@@ -90,12 +90,12 @@ public abstract class AggregateRoot<THIS extends AggregateRoot<THIS, I>, I exten
     }
 
     @SuppressWarnings({"rawtypes"})
-    Flux<CqrsEventHandler> getCqrsEventHandlers(Record event) {
-        Qualifier<CqrsEventHandler> qualifier = Qualifiers.byTypeArguments(this.getClass(), event.getClass());
+    Flux<CqrsEventHandler> getCqrsEventHandlers(EventMessage<I, ? extends Record> eventMessage) {
+        Qualifier<CqrsEventHandler> qualifier = Qualifiers.byTypeArguments(this.getClass(), eventMessage.event().getClass());
 
         var beansOfType = this.applicationContext.getBeansOfType(CqrsEventHandler.class, qualifier);
         if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("Found event handler {} for event: {} - {}", beansOfType, event, beansOfType.size());
+            LOGGER.trace("Found event handler {} for event: {} - {}", beansOfType, eventMessage.event(), beansOfType.size());
         }
         return Flux.fromIterable(beansOfType);
     }

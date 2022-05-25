@@ -5,8 +5,7 @@ import io.micronaut.core.annotation.Indexed;
 import java.util.EventListener;
 
 @Indexed(value = CqrsEventHandler.class)
-public interface CqrsEventHandler<I extends Id<A, I>, A extends AggregateRoot<A, I>> extends EventListener {
+public interface CqrsEventHandler<I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I, R>, R extends Record> extends EventListener {
 
-    void onEvent(A aggregateRoot, Record event);
-
+    void onEvent(A aggregateRoot, R event);
 }
