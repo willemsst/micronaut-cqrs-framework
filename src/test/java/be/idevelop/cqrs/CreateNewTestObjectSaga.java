@@ -1,46 +1,41 @@
 package be.idevelop.cqrs;
 
-import jakarta.inject.Inject;
-
 import java.time.Instant;
+import java.util.Optional;
+
+import static be.idevelop.cqrs.CreateNewTestObjectSaga.State.NEW;
 
 final class CreateNewTestObjectSaga extends Saga<CreateNewTestObjectSaga> {
 
+    private boolean someField;
+
     public CreateNewTestObjectSaga(SagaId<CreateNewTestObjectSaga> sagaId, Instant created) {
-        super(sagaId, created, State.NEW);
+        super(sagaId, created, NEW);
     }
 
-    enum State implements SagaState {
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    enum State implements SagaState<CreateNewTestObjectSaga> {
         NEW {
             @Override
-            public SagaTransition[] transitions() {
-                return new SagaTransition[]{
-                        new SagaTransition(e -> e instanceof TestCreatedEvent, TEST_CREATED),
-                        new SagaTransition(e -> e instanceof SagaExpiredEvent, END_STATE)
+            public Transition[] transitions() {
+                return new Transition[]{
+                        new Transition<CreateNewTestObjectSaga, TestId, TestCreatedEvent>(
+                                (saga, meta, event) -> {
+                                    saga.someField = true;
+                                    return VALIDATE;
+                                },
+                                (saga, meta, event) -> Optional.of(new ValidateTestObjectCommand(meta.objectId()))
+                        ),
                 };
             }
         },
-        TEST_CREATED {
+        VALIDATE {
             @Override
-            public SagaTransition[] transitions() {
-                return new SagaTransition[]{
-                        new SagaTransition(e -> e instanceof TestValidatedEvent, END_STATE),
-                        new SagaTransition(e -> e instanceof SagaExpiredEvent, END_STATE)
+            public Transition[] transitions() {
+                return new Transition[]{
+                        new Transition<CreateNewTestObjectSaga, TestId, TestValidatedEvent>((saga, event, eventMeta) -> END_STATE)
                 };
             }
         }
     }
-
-    @SagaDefinition(saga = CreateNewTestObjectSaga.class)
-    static class EventHandlers {
-
-        @Inject
-        private CommandBus commandBus;
-
-        @SagaEventHandler(event = TestCreatedEvent.class)
-        public void onEvent(CreateNewTestObjectSaga saga, EventMessage<TestId, TestCreatedEvent> eventMessage) {
-            saga.transit(eventMessage.objectId(), eventMessage.event(), () -> commandBus.publish(new ValidateTestObjectCommand(eventMessage.objectId())));
-        }
-    }
-
 }

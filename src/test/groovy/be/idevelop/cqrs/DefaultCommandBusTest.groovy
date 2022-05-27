@@ -74,7 +74,6 @@ class DefaultCommandBusTest extends Specification {
     @Replaces(SagaStore)
     static class InMemorySagaStore extends AbstractSagaStore {
 
-        private final Map<Id, List<Saga.HandledEvent>> sagaEvents = new LinkedHashMap<>()
         private final Map<Id, SagaData> sagas = new HashMap<>()
 
         @Override
@@ -88,7 +87,7 @@ class DefaultCommandBusTest extends Specification {
         void doStore(SagaData sagaData) {
             this.sagaEvents.putIfAbsent(sagaData.id(), new ArrayList<>())
             this.sagaEvents.get(sagaData.id()).addAll(sagaData.handledEvents())
-            this.sagas.put(sagaData.id(), new SagaData(sagaData.id(), sagaData.live(), sagaData.associatedEntities(), sagaData.currentVersion(), sagaData.created(), sagaData.scheduledTimeout(), sagaData.sagaClassName(), sagaEvents.get(sagaData.id())))
+            this.sagas.put(sagaData.id(), new SagaData(sagaData.id(), sagaData.sagaClassName(), sagaData.created(), sagaData.live(), sagaData.associatedEntities(), sagaData.scheduledTimeout()))
         }
     }
 

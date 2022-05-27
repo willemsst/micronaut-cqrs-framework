@@ -1,49 +1,44 @@
 package be.idevelop.cqrs;
 
 import io.micronaut.core.annotation.Introspected;
+import io.micronaut.serde.annotation.Serdeable;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.LinkedHashSet;
+import java.util.Optional;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 
-import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableSet;
 
-@SuppressWarnings({"rawtypes", "UnnecessaryDefault"})
+@SuppressWarnings({"rawtypes", "UnnecessaryDefault", "unchecked"})
 @Introspected
+@Serdeable
 public abstract class Saga<THIS extends Saga<THIS>> implements Entity<THIS, SagaId<THIS>> {
 
     public static final TimeoutStrategy NO_TIMEOUT = new TimeoutStrategy(Long.MAX_VALUE, ChronoUnit.DAYS, TimeoutType.NO_TIMEOUT);
-
     private final SagaId<THIS> sagaId;
     private final Instant created;
-    private final List<HandledEvent> eventsToStore;
-    @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
-    private final List<HandledEvent> handledEvents;
-    private final Set<Id> associatedEntities;
-    private final AtomicInteger currentVersion;
-    private final Queue<Runnable> onSuccessActions;
+    private final Set<Id<?, ?>> associatedEntities;
     private final TimeoutStrategy timeoutStrategy;
-
-    private SagaState currentState;
+    private SagaState<THIS> currentState;
     private Instant scheduledTimeout;
+    final Queue<OnSuccessCommandData<THIS, ? extends Id<?, ?>, ? extends Record>> commandsToPublish;
 
-    public Saga(SagaId<THIS> sagaId, Instant created, SagaState beginState) {
+    public Saga(SagaId<THIS> sagaId, Instant created, Enum<? extends SagaState<THIS>> beginState) {
         this(sagaId, created, beginState, NO_TIMEOUT);
     }
 
-    public Saga(SagaId<THIS> sagaId, Instant created, SagaState beginState, TimeoutStrategy timeoutStrategy) {
+    public Saga(SagaId<THIS> sagaId, Instant created, Enum<? extends SagaState<THIS>> beginState, TimeoutStrategy timeoutStrategy) {
         this.sagaId = sagaId;
         this.created = created;
-        this.currentState = beginState;
+        this.currentState = (SagaState<THIS>) beginState;
         this.timeoutStrategy = timeoutStrategy;
-        this.eventsToStore = new ArrayList<>();
-        this.handledEvents = new ArrayList<>();
         this.associatedEntities = new LinkedHashSet<>();
-        this.onSuccessActions = new LinkedList<>();
-        this.currentVersion = new AtomicInteger(0);
         this.scheduledTimeout = initTimeout();
+        this.commandsToPublish = new ArrayBlockingQueue<>(1);
     }
 
     private Instant initTimeout() {
@@ -69,58 +64,31 @@ public abstract class Saga<THIS extends Saga<THIS>> implements Entity<THIS, Saga
         return !isTimedOut() && this.currentState.isLive();
     }
 
-    public final <I extends Id<E, I>, E extends Entity<E, I>> void transit(I id, Record event, Runnable... onSuccessActions) {
-        if (doTransit(id, event, false)) {
-            Collections.addAll(this.onSuccessActions, onSuccessActions);
-        }
+    public <EVENT extends Record> boolean transit(final EVENT event, final EventMeta eventMeta) {
+        final THIS saga = (THIS) this;
+        return lookupPossibleTransition(event)
+                .map(transition -> {
+                    this.associatedEntities.add(eventMeta.objectId());
+                    this.currentState = transition.transit(saga, event, eventMeta);
+                    this.commandsToPublish.offer(new OnSuccessCommandData<>(saga, event, eventMeta, transition.onSuccessCommand()));
+                    return true;
+                })
+                .orElse(false);
     }
 
-    private <I extends Id<E, I>, E extends Entity<E, I>> boolean doTransit(I id, Record event, boolean inReplayMode) {
-        boolean result = false;
+    private <I extends Id<E, I>, E extends Entity<E, I>, EVENT extends Record> Optional<Transition<THIS, I, EVENT>> lookupPossibleTransition(EVENT event) {
         if (!isTimedOut()) {
             if (this.currentState.isAllowed(event)) {
-                this.associatedEntities.add(id);
-                if (!inReplayMode) {
-                    this.scheduledTimeout = updateTimeout();
-                    this.eventsToStore.add(new HandledEvent(event, currentVersion.incrementAndGet(), Instant.now()));
-                }
-                this.currentState = this.currentState.transit(event);
-                result = true;
+                this.scheduledTimeout = updateTimeout();
+                return this.currentState.lookForValidTransition(event);
             }
         }
-        return result;
+        return Optional.empty();
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private boolean isTimedOut() {
         return Instant.now().isAfter(this.scheduledTimeout);
-    }
-
-    final void markSaved() {
-        this.handledEvents.addAll(this.eventsToStore);
-        this.eventsToStore.clear();
-    }
-
-    final void performOnSuccessActions() {
-        while (!this.onSuccessActions.isEmpty()) {
-            try {
-                this.onSuccessActions.poll().run();
-            } catch (Exception e) {
-                throw new IllegalStateException("Could not execute on success action", e);
-            }
-        }
-    }
-
-    final void replayEvents(List<HandledEvent> handledEvents) {
-        for (HandledEvent handledEvent : handledEvents) {
-            this.doTransit(getSagaId(), handledEvent.event, true);
-            this.currentVersion.set(handledEvent.version);
-        }
-        this.onSuccessActions.clear();
-    }
-
-    record HandledEvent(Record event, int version, Instant timestamp) {
-
     }
 
     final SagaId<THIS> getSagaId() {
@@ -131,19 +99,37 @@ public abstract class Saga<THIS extends Saga<THIS>> implements Entity<THIS, Saga
         return created;
     }
 
-    final List<HandledEvent> getEventsToStore() {
-        return unmodifiableList(eventsToStore);
-    }
-
     final Set<Id> getAssociatedEntities() {
         return unmodifiableSet(associatedEntities);
     }
 
-    final int getCurrentVersion() {
-        return currentVersion.intValue();
-    }
-
     final Instant getScheduledTimeout() {
         return this.scheduledTimeout;
+    }
+
+    final SagaState getCurrentState() {
+        return this.currentState;
+    }
+
+    final void setCurrentState(SagaState currentState) {
+        this.currentState = currentState;
+    }
+
+    final String getFieldDataAsJson() {
+        throw new UnsupportedOperationException("");
+//        return null;
+    }
+
+    final Saga<THIS> hydrateFieldDataFromJson(String json) {
+        throw new UnsupportedOperationException("");
+//        return this;
+    }
+
+    record OnSuccessCommandData<S extends Saga<S>, EVENT extends Record, I extends Id<?, I>>(Saga s, EVENT event,
+                                                                                             EventMeta<I> meta,
+                                                                                             Transition.CommandGenerator<S, I, EVENT> generator) {
+        Optional<Command<? extends Id>> generate() {
+            return generator.generateCommand((S) s, meta, event);
+        }
     }
 }

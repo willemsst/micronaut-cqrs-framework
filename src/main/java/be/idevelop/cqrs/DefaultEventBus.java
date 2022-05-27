@@ -23,7 +23,7 @@ final class DefaultEventBus implements EventBus {
     SagaRepository sagaRepository;
 
     @Override
-    public <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I, ? extends Record>> Mono<Boolean> publish(List<EM> eventMessages) {
+    public <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I, ? extends EVENT>, EVENT extends Record> Mono<Boolean> publish(List<EM> eventMessages) {
         return Flux.fromIterable(eventMessages)
                 .flatMap(this::handleEventOnListeners)
                 .flatMap(sagaRepository::handleEventOnSagas)
@@ -49,5 +49,4 @@ final class DefaultEventBus implements EventBus {
         }
         return Flux.fromIterable(beansOfType);
     }
-
 }

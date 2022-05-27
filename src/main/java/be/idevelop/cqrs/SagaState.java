@@ -1,47 +1,46 @@
 package be.idevelop.cqrs;
 
 import io.micronaut.core.annotation.Introspected;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
-import java.util.function.Function;
+import java.util.Optional;
 
+@SuppressWarnings({"unchecked", "rawtypes"})
 @Introspected
-public interface SagaState {
+public interface SagaState<S extends Saga<S>> {
 
-    SagaState END_STATE = new EndState();
+    Logger LOGGER = LoggerFactory.getLogger(SagaState.class);
 
     String name();
 
-    SagaTransition[] transitions();
+    Transition<S, ?, ?>[] transitions();
 
-    default boolean isAllowed(Object input) {
-        return input != null && isLive() && Arrays.stream(this.transitions()).anyMatch(transition -> transition.isAllowed(input));
-    }
-
-    default SagaState transit(Object input) {
-        if (isAllowed(input)) {
-            for (SagaTransition transition : this.transitions()) {
-                if (transition.isAllowed(input)) {
-                    SagaState newState = transition.transit(input);
-                    if(newState != this) {
-                        return newState;
-                    }
+    default <I extends Id<?, I>, EVENT extends Record> Optional<Transition<S, I, EVENT>> lookForValidTransition(EVENT event) {
+        if (isAllowed(event)) {
+            for (Transition transition : this.transitions()) {
+                if (transition.isAllowed(event)) {
+                    return Optional.of(transition);
                 }
             }
-            throw new IllegalStateException("Could not transit from state" + this.name() + " with input [" + input + "].");
-        } else {
-            return this;
+            LOGGER.info("Could not find a transition from state {} with input [{}}].", this.name(), event);
         }
+        return Optional.empty();
+    }
+
+    default boolean isAllowed(Record event) {
+        return Arrays.stream(transitions()).anyMatch(transition -> transition.isAllowed(event));
     }
 
     default boolean isLive() {
         return this.transitions().length > 0;
     }
 
-    final class EndState implements SagaState {
-
+    @SuppressWarnings("rawtypes")
+    SagaState END_STATE = new SagaState() {
         @Override
-        public boolean isAllowed(Object input) {
+        public boolean isAllowed(Record event) {
             return false;
         }
 
@@ -51,33 +50,14 @@ public interface SagaState {
         }
 
         @Override
-        public SagaTransition[] transitions() {
-            return new SagaTransition[0];
+        public Optional<Transition> lookForValidTransition(Record record) {
+            return Optional.empty();
         }
 
         @Override
-        public SagaState transit(Object input) {
-            return this;
+        public Transition[] transitions() {
+            return new Transition[0];
         }
 
-        @Override
-        public boolean isLive() {
-            return false;
-        }
-    }
-
-    record SagaTransition(Function<Object, Boolean> predicate, SagaState newState) {
-
-        public boolean isAllowed(Object input) {
-            return input != null && predicate.apply(input);
-        }
-
-        public SagaState transit(Object input) {
-            if (isAllowed(input)) {
-                return newState;
-            } else {
-                return null;
-            }
-        }
-    }
+    };
 }
