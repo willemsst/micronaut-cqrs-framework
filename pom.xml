@@ -10,8 +10,8 @@
     <description>A lightweight Micronaut based CQRS framework</description>
 
     <properties>
-        <micronaut.version>3.4.4</micronaut.version>
-        <micronaut.test.version>3.2.0</micronaut.test.version>
+        <micronaut.version>3.5.0</micronaut.version>
+        <micronaut.test.version>3.3.0</micronaut.test.version>
         <micronaut.reactor.version>2.2.2</micronaut.reactor.version>
         <jdk.version>17</jdk.version>
         <groovy.version>3.0.9</groovy.version>
@@ -222,7 +222,7 @@
                 <plugin>
                     <groupId>io.micronaut.build</groupId>
                     <artifactId>micronaut-maven-plugin</artifactId>
-                    <version>3.2.4</version>
+                    <version>3.3.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
