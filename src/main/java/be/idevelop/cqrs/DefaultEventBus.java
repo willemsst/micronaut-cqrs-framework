@@ -16,11 +16,15 @@ final class DefaultEventBus implements EventBus {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DefaultEventBus.class);
 
-    @Inject
-    private ApplicationContext applicationContext;
+    private final ApplicationContext applicationContext;
+
+    private final SagaRepository sagaRepository;
 
     @Inject
-    SagaRepository sagaRepository;
+    public DefaultEventBus(ApplicationContext applicationContext, SagaRepository sagaRepository) {
+        this.applicationContext = applicationContext;
+        this.sagaRepository = sagaRepository;
+    }
 
     @Override
     public <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I, ? extends EVENT>, EVENT extends Record> Mono<Boolean> publish(List<EM> eventMessages) {

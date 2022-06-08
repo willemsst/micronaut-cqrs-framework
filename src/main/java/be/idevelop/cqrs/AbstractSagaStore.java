@@ -1,10 +1,13 @@
 package be.idevelop.cqrs;
 
 import io.micronaut.core.beans.BeanIntrospector;
+import io.micronaut.core.type.Argument;
+import io.micronaut.json.JsonMapper;
 import io.micronaut.serde.annotation.Serdeable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Set;
@@ -12,12 +15,19 @@ import java.util.Set;
 @SuppressWarnings("unchecked")
 public abstract class AbstractSagaStore implements SagaStore {
 
-    @Override
-    public <I extends Id<A, I>, A extends AggregateRoot<A, I>, S extends Saga<S>> Flux<S> findAssociatedSagas(I id) {
-        return doFindAssociatedSagas(id).flatMap(AbstractSagaStore::rebuildSaga);
+    private final JsonMapper jsonMapper;
+
+    protected AbstractSagaStore(JsonMapper jsonMapper) {
+        this.jsonMapper = jsonMapper;
     }
 
-    private static <I extends Id<A, I>, A extends AggregateRoot<A, I>, S extends Saga<S>> Mono<S> rebuildSaga(SagaData sagaData) {
+    @Override
+    public <I extends Id<A, I>, A extends AggregateRoot<A, I>, S extends Saga<S>> Flux<S> findAssociatedSagas(I id, Class<S> sagaClass) {
+        return doFindAssociatedSagas(id, sagaClass)
+                .flatMap(this::rebuildSaga);
+    }
+
+    private <I extends Id<A, I>, A extends AggregateRoot<A, I>, S extends Saga<S>> Mono<S> rebuildSaga(SagaData sagaData) {
         return Flux.fromIterable(
                         BeanIntrospector.SHARED.findIntrospections(beanIntrospectionReference -> Objects.equals(beanIntrospectionReference.getBeanType().getName(), sagaData.sagaClassName))
                 )
@@ -27,26 +37,41 @@ public abstract class AbstractSagaStore implements SagaStore {
                         sagaData.created
                 ))
                 .onErrorResume(e -> Mono.empty())
-                .doOnSuccess(saga -> saga.setCurrentState(sagaData.sagaState))
-                .doOnSuccess(saga -> saga.hydrateFieldDataFromJson(sagaData.fieldData));
+                .doOnNext(saga -> saga.setCurrentState(sagaData.sagaState))
+                .doOnNext(saga -> {
+                    try {
+                        saga.hydrateFieldData(jsonMapper.readValue(sagaData.fieldData(), Argument.mapOf(String.class, Object.class)));
+                    } catch (IOException e) {
+                        throw new RuntimeException("Could not deserialize Saga field data from BSON", e);
+                    }
+                });
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
-    public void storeSaga(Saga saga) {
-        doStore(
-                new SagaData(
-                        saga.getSagaId(),
-                        saga.getClass().getName(),
-                        saga.getCreated(),
-                        saga.getCurrentState(),
-                        saga.getAssociatedEntities(),
-                        saga.getScheduledTimeout(),
-                        saga.getFieldDataAsJson()
-                )
-        );
+    public <S extends Saga<S>> void storeSaga(S saga) {
+        try {
+            doStore(
+                    new SagaData(
+                            saga.getSagaId(),
+                            saga.getClass().getName(),
+                            saga.getCreated(),
+                            saga.getCurrentState(),
+                            saga.getLinkedEntities(),
+                            saga.getScheduledTimeout(),
+                            jsonMapper.writeValueAsBytes(saga.getFieldData())
+                    )
+            );
+        } catch (IOException e) {
+            throw new RuntimeException("Could not serialize Saga field data to BSON", e);
+        }
     }
 
+    @Override
+    public <S extends Saga<S>> void deleteSaga(S saga) {
+        doDeleteSaga(saga.getSagaId());
+    }
+
+    @SuppressWarnings("rawtypes")
     @Serdeable
     record SagaData(
             SagaId id,
@@ -55,11 +80,13 @@ public abstract class AbstractSagaStore implements SagaStore {
             SagaState sagaState,
             Set<Id> associatedEntities,
             Instant scheduledTimeout,
-            String fieldData
+            byte[] fieldData
     ) {
+
     }
+    protected abstract <I extends Id<A, I>, A extends AggregateRoot<A, I>, S extends Saga<S>> Flux<SagaData> doFindAssociatedSagas(I id, Class<S> sagaClass);
 
-    public abstract Flux<SagaData> doFindAssociatedSagas(Id id);
+    protected abstract void doStore(SagaData sagaData);
 
-    public abstract void doStore(SagaData sagaData);
+    protected abstract <S extends Saga<S>> void doDeleteSaga(SagaId<S> sagaId);
 }

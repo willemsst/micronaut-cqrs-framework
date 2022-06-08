@@ -35,6 +35,7 @@ class DefaultCommandBusTest extends Specification {
 
         when:
         def objectId = commandBus.publishAndWait(command).block()
+        sleep(500)
 
         then:
         noExceptionThrown()
@@ -70,26 +71,6 @@ class DefaultCommandBusTest extends Specification {
         }
     }
 
-    @MockBean
-    @Replaces(SagaStore)
-    static class InMemorySagaStore extends AbstractSagaStore {
-
-        private final Map<Id, SagaData> sagas = new HashMap<>()
-
-        @Override
-        Flux<SagaData> doFindAssociatedSagas(Id id) {
-            return Flux.fromIterable(sagas.values())
-                    .filter(sagaData -> sagaData.associatedEntities().contains(id))
-                    .filter(SagaData::live)
-        }
-
-        @Override
-        void doStore(SagaData sagaData) {
-            this.sagaEvents.putIfAbsent(sagaData.id(), new ArrayList<>())
-            this.sagaEvents.get(sagaData.id()).addAll(sagaData.handledEvents())
-            this.sagas.put(sagaData.id(), new SagaData(sagaData.id(), sagaData.sagaClassName(), sagaData.created(), sagaData.live(), sagaData.associatedEntities(), sagaData.scheduledTimeout()))
-        }
-    }
 
     def 'flatten flux of flux of flux of flux of flux'() {
         given:

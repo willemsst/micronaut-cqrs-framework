@@ -2,8 +2,9 @@ package be.idevelop.cqrs;
 
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.BeanRegistration;
-import io.micronaut.core.beans.BeanIntrospection;
 import io.micronaut.core.beans.BeanIntrospector;
+import io.micronaut.core.type.Argument;
+import io.micronaut.inject.BeanDefinition;
 import io.micronaut.scheduling.annotation.Async;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -12,10 +13,12 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.lang.reflect.Modifier;
 import java.time.Instant;
-import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
 
+import static be.idevelop.cqrs.SagaState.END_STATE;
+import static be.idevelop.cqrs.SagaState.START_STATE;
 import static be.idevelop.cqrs.TaskExecutorFactory.SAGA_ON_SUCCESS_ACTIONS_THREAD;
 
 @Singleton
@@ -23,42 +26,75 @@ class SagaRepository {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SagaRepository.class);
 
-    @Inject
-    private ApplicationContext applicationContext;
+    private final ApplicationContext applicationContext;
+
+    private final SagaStore sagaStore;
 
     @Inject
-    private SagaStore sagaStore;
+    public SagaRepository(ApplicationContext applicationContext, SagaStore sagaStore) {
+        this.applicationContext = applicationContext;
+        this.sagaStore = sagaStore;
+    }
 
     @SuppressWarnings({"unchecked"})
     <I extends Id<A, I>, A extends AggregateRoot<A, I>, EM extends EventMessage<I, ? extends EVENT>, EVENT extends Record, S extends Saga<S>> Mono<EM> handleEventOnSagas(EM eventMessage) {
-        Collection<Class<?>> sagaClasses = BeanIntrospector.SHARED.findIntrospectedTypes(x -> Saga.class.isAssignableFrom(x.getBeanType()) && !Modifier.isAbstract(x.getBeanType().getModifiers()));
-        return Flux.fromIterable(sagaClasses)
-                .map(sagaClass -> (Class<S>) sagaClass)
-                .flatMap(sagaClass -> findAssociatedSagas(sagaClass, eventMessage.objectId())
-                        .switchIfEmpty(Flux.defer(() -> Flux.just(createNewSaga(sagaClass))))
-                        .doOnNext(saga -> {
-                            if (saga.transit(eventMessage.event(), eventMessage.eventMeta())) {
-                                this.storeSaga(saga);
+        return getCqrsSagaEventHandlers(eventMessage.event())
+                .flatMap(cqrsSagaEventHandler ->
+                        ((Flux<S>) findExistingOrCreateSagaForEventAndEventHandler(eventMessage.objectId(), cqrsSagaEventHandler))
+                                .doOnNext(saga -> saga.handleEvent(cqrsSagaEventHandler, eventMessage))
+                                .doOnNext(saga -> saga.linkEntity(eventMessage.objectId()))
+                                .doOnNext(Saga::updateTimeout)
+                                .doOnNext(this::storeSaga)
+                )
+                .reduce(eventMessage, (em, saga) -> em);
+    }
+
+    @SuppressWarnings("rawtypes")
+    private <I extends Id<A, I>, A extends AggregateRoot<A, I>, EVENT extends Record> Flux<CqrsSagaEventHandler> getCqrsSagaEventHandlers(EVENT event) {
+        var beanDefinitions = applicationContext.getBeanDefinitions(CqrsSagaEventHandler.class);
+        return Flux.fromIterable(beanDefinitions)
+                .filter(beanDefinition -> beanDefinition.isAnnotationPresent(SagaEventHandler.class))
+                .filter(beanDefinition -> Objects.requireNonNull(beanDefinition.getAnnotation(SagaEventHandler.class)).getRequiredValue("event", Class.class) == event.getClass())
+                .doOnNext(matching -> {
+                    if (LOGGER.isTraceEnabled()) {
+                        LOGGER.trace("Found saga event handler {} for event: {}", matching, event);
+                    }
+                })
+                .map(applicationContext::getBean)
+                .cast(CqrsSagaEventHandler.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <I extends Id<A, I>, A extends AggregateRoot<A, I>, EVENT extends Record, S extends Saga<S>> Flux<S> findExistingOrCreateSagaForEventAndEventHandler(I objectId, CqrsSagaEventHandler<S, I, EVENT> cqrsSagaEventHandler) {
+        BeanDefinition<? extends CqrsSagaEventHandler<S, I, EVENT>> beanDefinition = (BeanDefinition<? extends CqrsSagaEventHandler<S, I, EVENT>>) applicationContext.getBeanDefinition(cqrsSagaEventHandler.getClass());
+        List<Argument<?>> typeArguments = beanDefinition.getTypeArguments(CqrsSagaEventHandler.class);
+        Class<S> sagaClass = (Class<S>) typeArguments.get(0).getType();
+        return Mono.justOrEmpty(beanDefinition)
+                .flatMapIterable(BeanDefinition::getExecutableMethods)
+                .filter(method -> method.getArguments().length == 3)
+                .flatMap(method ->
+                        Mono.justOrEmpty(method.getAnnotation(SagaEventHandler.class)).flatMapMany(annotation -> {
+                            String state = annotation.getRequiredValue("state", String.class);
+                            boolean createNew = START_STATE.name().equals(state);
+                            if (createNew) {
+                                return Mono.justOrEmpty(BeanIntrospector.SHARED.findIntrospection(sagaClass))
+                                        .map(i -> i.instantiate(SagaId.createNew(sagaClass), Instant.now()));
+                            } else {
+                                return sagaStore.findAssociatedSagas(objectId, sagaClass)
+                                        .filter(saga -> state.equals(saga.getCurrentState().name()))
+                                        .filter(Saga::isLive);
                             }
-                        }))
-                .reduce(eventMessage, (em, method) -> em);
+                        })
+                );
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private <I extends Id<A, I>, A extends AggregateRoot<A, I>, S extends Saga<S>> Flux<S> findAssociatedSagas(Class<S> sagaClass, I objectId) {
-        return (Flux<S>) this.sagaStore.findAssociatedSagas(objectId)
-                .filter(sagaClass::isInstance);
-    }
-
-    private static <S extends Saga<S>> S createNewSaga(Class<S> sagaClass) {
-        BeanIntrospection<S> introspection = BeanIntrospection.getIntrospection(sagaClass);
-        return introspection.instantiate(SagaId.createNew(sagaClass), Instant.now());
-    }
-
-    final <S extends Saga<S>> void storeSaga(S saga) {
-        this.sagaStore.storeSaga(saga);
-
-        performOnSuccessActionsAsync(saga);
+    private <S extends Saga<S>> void storeSaga(S saga) {
+        if (END_STATE.equals(saga.getCurrentState())) {
+            this.sagaStore.deleteSaga(saga);
+        } else {
+            this.sagaStore.storeSaga(saga);
+            performOnSuccessActionsAsync(saga);
+        }
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -66,9 +102,12 @@ class SagaRepository {
     <S extends Saga<S>> void performOnSuccessActionsAsync(S saga) {
         this.applicationContext.getActiveBeanRegistrations(CommandBus.class).stream().findFirst().map(BeanRegistration::getBean)
                 .ifPresent(commandBus -> {
-                    while (!saga.commandsToPublish.isEmpty()) {
-                        saga.commandsToPublish.poll().generate().ifPresent(command -> commandBus.publish((Command) command));
-                    }
-                });
+                            while (!saga.commandsToPublish.isEmpty()) {
+                                commandBus.publish(
+                                        (Command) saga.commandsToPublish.poll()
+                                );
+                            }
+                        }
+                );
     }
 }

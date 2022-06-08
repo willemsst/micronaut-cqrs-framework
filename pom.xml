@@ -11,6 +11,7 @@
 
     <properties>
         <micronaut.version>3.5.1</micronaut.version>
+        <micronaut.serde.version>1.1.0</micronaut.serde.version>
         <micronaut.test.version>3.3.0</micronaut.test.version>
         <micronaut.reactor.version>2.2.2</micronaut.reactor.version>
         <jdk.version>17</jdk.version>
@@ -27,7 +28,15 @@
     <dependencies>
         <dependency>
             <groupId>io.micronaut</groupId>
+            <artifactId>micronaut-runtime</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micronaut</groupId>
             <artifactId>micronaut-inject</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micronaut</groupId>
+            <artifactId>micronaut-context</artifactId>
         </dependency>
         <dependency>
             <groupId>io.micronaut</groupId>
@@ -40,6 +49,10 @@
         <dependency>
             <groupId>io.micronaut.serde</groupId>
             <artifactId>micronaut-serde-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micronaut.serde</groupId>
+            <artifactId>micronaut-serde-bson</artifactId>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -92,6 +105,12 @@
                 <groupId>io.micronaut</groupId>
                 <artifactId>micronaut-runtime</artifactId>
                 <version>${micronaut.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>io.micronaut</groupId>
+                        <artifactId>micronaut-jackson-databind</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             <dependency>
                 <groupId>io.micronaut</groupId>
@@ -120,6 +139,11 @@
             </dependency>
             <dependency>
                 <groupId>io.micronaut</groupId>
+                <artifactId>micronaut-context</artifactId>
+                <version>${micronaut.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.micronaut</groupId>
                 <artifactId>micronaut-inject-java</artifactId>
                 <version>${micronaut.version}</version>
             </dependency>
@@ -131,7 +155,12 @@
             <dependency>
                 <groupId>io.micronaut.serde</groupId>
                 <artifactId>micronaut-serde-api</artifactId>
-                <version>1.1.0</version>
+                <version>${micronaut.serde.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.micronaut.serde</groupId>
+                <artifactId>micronaut-serde-bson</artifactId>
+                <version>${micronaut.serde.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.slf4j</groupId>
