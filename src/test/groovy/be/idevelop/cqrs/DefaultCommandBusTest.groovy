@@ -35,7 +35,6 @@ class DefaultCommandBusTest extends Specification {
 
         when:
         def objectId = commandBus.publishAndWait(command).block()
-        sleep(500)
 
         then:
         noExceptionThrown()

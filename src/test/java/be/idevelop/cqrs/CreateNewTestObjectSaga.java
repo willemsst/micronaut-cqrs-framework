@@ -12,14 +12,14 @@ import static be.idevelop.cqrs.SagaState.END_STATE;
 final class CreateNewTestObjectSaga extends Saga<CreateNewTestObjectSaga> {
 
     @Override
-    Map<String, Object> getFieldData() {
+    protected Map<String, Object> getFieldData() {
         Map<String, Object> map = new HashMap<>();
         map.put("someField", someField);
         return map;
     }
 
     @Override
-    void hydrateFieldData(Map<String, Object> fieldData) {
+    protected void hydrateFieldData(Map<String, Object> fieldData) {
         this.someField = (boolean) fieldData.get("someField");
     }
 

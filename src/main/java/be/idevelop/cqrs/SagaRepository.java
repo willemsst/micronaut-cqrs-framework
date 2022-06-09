@@ -19,10 +19,11 @@ import java.util.Objects;
 
 import static be.idevelop.cqrs.SagaState.END_STATE;
 import static be.idevelop.cqrs.SagaState.START_STATE;
-import static be.idevelop.cqrs.TaskExecutorFactory.SAGA_ON_SUCCESS_ACTIONS_THREAD;
 
 @Singleton
 class SagaRepository {
+
+    private static final String SAGA_ON_SUCCESS_ACTIONS_THREAD = "saga-on-success-actions";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SagaRepository.class);
 
@@ -93,8 +94,8 @@ class SagaRepository {
             this.sagaStore.deleteSaga(saga);
         } else {
             this.sagaStore.storeSaga(saga);
-            performOnSuccessActionsAsync(saga);
         }
+        performOnSuccessActionsAsync(saga);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

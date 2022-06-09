@@ -99,9 +99,9 @@ public abstract class Saga<THIS extends Saga<THIS>> implements Entity<THIS, Saga
         return newState.equals(SagaState.END_STATE) || this.states.contains(newState);
     }
 
-    abstract Map<String, Object> getFieldData();
+    protected abstract Map<String, Object> getFieldData();
 
-    abstract void hydrateFieldData(Map<String, Object> fieldData);
+    protected abstract void hydrateFieldData(Map<String, Object> fieldData);
 
     /**
      * Publish a new command on the command bus. This will be performed Async once the saga is stored successfully so it
@@ -109,7 +109,7 @@ public abstract class Saga<THIS extends Saga<THIS>> implements Entity<THIS, Saga
      *
      * @param command the command to publish.
      */
-    final void publishCommand(Command command) {
+    protected final void publishCommand(Command command) {
         this.commandsToPublish.offer(command);
     }
 
