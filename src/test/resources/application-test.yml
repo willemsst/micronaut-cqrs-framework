@@ -4,7 +4,6 @@ micronaut:
       type: scheduled
       name: saga-on-success-actions
       thread-factory-class: io.micronaut.scheduling.executor.NamedThreadFactory
-
 cqrs:
   scheduler:
     prefix: cqrs
