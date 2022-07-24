@@ -11,7 +11,7 @@
 
     <properties>
         <micronaut.version>3.5.3</micronaut.version>
-        <micronaut.serde.version>1.1.0</micronaut.serde.version>
+        <micronaut.serde.version>1.2.0</micronaut.serde.version>
         <micronaut.test.version>3.4.0</micronaut.test.version>
         <micronaut.reactor.version>2.3.0</micronaut.reactor.version>
         <jdk.version>17</jdk.version>
